@@ -1,0 +1,46 @@
+{
+  "name": "skul",
+  "description": "SKuL - SQL query manager",
+  "version": "0.0.1",
+  "author": "Paul Duthoit <duthoit.paul@gmail.com>",
+  "homepage": "http://skul.io/",
+  "main": "index.js",
+  "keywords": [
+    "sql",
+    "mysql",
+    "orm",
+    "query",
+    "builder",
+    "manager",
+    "postgresql",
+    "postgres",
+    "pg",
+    "pgsql"
+  ],
+  "license": "MIT",
+  "dependencies": {
+    "knex": "^0.10.0",
+    "object-path": "^0.9.2",
+    "promise": "^7.1.1",
+    "underscore": "1.8.3"
+  },
+  "devDependencies": {
+    "debug": "^2.2.0",
+    "mocha": "2.4.5",
+    "mysql": "^2.10.2"
+  },
+  "directories": {
+    "lib": "./lib/skul"
+  },
+  "bugs": {
+    "url": "https://github.com/paulduthoit/skul/issues/new",
+    "email": "duthoit.paul@gmail.com"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git://github.com/paulduthoit/skul.git"
+  },
+  "scripts": {
+    "test": "mocha ./tests/index.js --timeout 10000"
+  }
+}
