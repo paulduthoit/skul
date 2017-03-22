@@ -1,7 +1,7 @@
 /*
-* lib/controller/index.js
+* helpers/url-parser.js
 *
-* Controller library
+* UrlParser helper
 *
 * Author: Paul Duthoit
 * Copyright(c) 2016 OOCAR
@@ -13,10 +13,10 @@ var moment = require('moment');
 
 
 /**
- * Url constructor
+ * UrlParser constructor
  * @api public
  */
-var Url = function() {};
+var UrlParser = function() {};
 
 
 // Constants
@@ -30,18 +30,31 @@ var URL_REGEX = new RegExp("(\\ *[a-z]+\\()" + "|" + 								// Logical Query Op
 						  "([^\\(\\),\\\\]+)(?:\\\\.[^\\(\\),\\\\]*)*", "g");		// Argument
 var URL_ARRAY_OPENER = [
 	'or(', 'and(', 'nand(', 'nor(', 'xor(',
-	'.in(', '.nin(', 'in(', 'nin('
+	'.in(', '.nin(',
+	'.between('
 ];
 var URL_VALUE_OPENER = [
-	'not(', '.not(',
-	'.gt(', '.gte(', '.lt(', '.lte(', 'gt(', 'gte(', 'lt(', 'lte(',
-	'.e(', '.ne(', 'e(', 'ne(', '.like(',
-	'date('
+	'.gt(', '.gte(', '.lt(', '.lte(',
+	'.e(', '.ne(', '.like(', '.nlike(',
+	'date(',
+	'.lastyear(', '.lastmonth(', '.lastweek(',
+	'.currentyear(', '.currentmonth(', '.currentweek('
+];
+var URL_BOOLEAN_OPENER = [
+	'.count(',
+	'.lastyear(', '.lastmonth(', '.lastweek(',
+	'.currentyear(', '.currentmonth(', '.currentweek('
+];
+var URL_OPERATOR_OPENER = [
+	'.gt(', '.gte(', '.lt(', '.lte(',
+	'.e(', '.ne(', '.like(', '.nlike(',
+	'.in(', '.nin(',
+	'.between('
 ];
 var URL_FUNCTION_OPENER = [
 	'.filter(', '.count(', '.sum(', '.avg(', '.as('
 ];
-var URL_OPENER = URL_ARRAY_OPENER.concat(URL_VALUE_OPENER, URL_FUNCTION_OPENER);
+var URL_OPENER = _.uniq(URL_ARRAY_OPENER.concat(URL_VALUE_OPENER, URL_FUNCTION_OPENER, URL_BOOLEAN_OPENER));
 
 
 /**
@@ -51,10 +64,11 @@ var URL_OPENER = URL_ARRAY_OPENER.concat(URL_VALUE_OPENER, URL_FUNCTION_OPENER);
  * @return {Object}
  * @api public
  */
-Url.parseQuery = function(stringToParse) {
+UrlParser.parseQuery = function(stringToParse) {
 
 	// Datas
 	var query = {};
+	var lastObj = null;
 	var currentObj = query;
 	var currentKey = null;
 	var currentPosition = 0;
@@ -80,9 +94,14 @@ Url.parseQuery = function(stringToParse) {
 		// Is opener
 		if(currentPosition === 0 && _.contains(URL_OPENER, value)) {
 
-			// If current obj has already a function opener
-			if((_.contains(URL_VALUE_OPENER, value) || _.contains(URL_ARRAY_OPENER, value)) && _.contains(_.keys(currentObj), '$filter')) {
+			// If value is an url function opener
+			if(_.contains(URL_FUNCTION_OPENER, value) && !_.contains(_.keys(currentObj), '$where')) {
 				currentObj['$where'] = {};
+			}
+
+			// If current obj has already a function opener
+			if((_.contains(URL_OPERATOR_OPENER, value)) && _.contains(_.keys(currentObj), '$where')) {
+				lastObj = currentObj;
 				currentObj = currentObj['$where'];
 			}
 
@@ -106,7 +125,7 @@ Url.parseQuery = function(stringToParse) {
 			if(currentPosition === 1 && value === ',' && currentObj[currentKey] instanceof Array) {
 
 				// Parse previous value
-				currentObj[currentKey][currentObj[currentKey].length-1] = Url.parseQuery(currentObj[currentKey][currentObj[currentKey].length-1]);
+				currentObj[currentKey][currentObj[currentKey].length-1] = UrlParser.parseQuery(currentObj[currentKey][currentObj[currentKey].length-1]);
 
 				// Push new value
 				currentObj[currentKey].push('');
@@ -117,7 +136,7 @@ Url.parseQuery = function(stringToParse) {
 			else if(currentPosition === 1 && value === ')' && currentObj[currentKey] instanceof Array) {
 
 				// Parse previous value
-				currentObj[currentKey][currentObj[currentKey].length-1] = Url.parseQuery(currentObj[currentKey][currentObj[currentKey].length-1]);
+				currentObj[currentKey][currentObj[currentKey].length-1] = UrlParser.parseQuery(currentObj[currentKey][currentObj[currentKey].length-1]);
 
 			}
 
@@ -125,12 +144,17 @@ Url.parseQuery = function(stringToParse) {
 			else if(currentPosition === 1 && value === ')') {
 
 				// Parse previous value
-				if(_.contains([ '$count' ], currentKey)) {
+				if(_.contains(_.map(URL_BOOLEAN_OPENER, function(val) { return '$' + val.replace(/^\.|\($/g, ''); }), currentKey)) {
 					currentObj[currentKey] = 1;
 				} else if(_.contains([ '$sum', '$avg' ], currentKey)) {
 					currentObj[currentKey] = currentObj[currentKey];
 				} else {
-					currentObj[currentKey] = Url.parseQuery(currentObj[currentKey]);
+					currentObj[currentKey] = UrlParser.parseQuery(currentObj[currentKey]);
+				}
+
+				// Current obj
+				if(lastObj) {
+					currentObj = lastObj;
 				}
 
 			}
@@ -181,10 +205,10 @@ Url.parseQuery = function(stringToParse) {
 			// Set query
 			if(moment(value, [ 'YYYY-MM-DD', 'YYYY-MM-DD HH:mm:ss' ], true).isValid()) {
 				query = value;
-			} else if(isNaN(parseFloat(value))) {
-				query = value;
-			} else {
+			} else if(value.match(/^[0-9.]*?$/)) {
 				query = parseFloat(value);
+			} else {
+				query = value;
 			}
 		}
 
@@ -202,7 +226,7 @@ Url.parseQuery = function(stringToParse) {
  * @return {Object}
  * @api public
  */
-Url.parseProjection = function(stringToParse) {
+UrlParser.parseProjection = function(stringToParse) {
 
 	// Check datas
 	if(typeof(stringToParse) !== "string")
@@ -261,7 +285,7 @@ Url.parseProjection = function(stringToParse) {
 				else {
 
 					// Extend current obj
-					_.extend(currentObj, Url.parseProjection(onProjectionString));
+					_.extend(currentObj, UrlParser.parseProjection(onProjectionString));
 
 					// Reset projection datas
 					onProjectionString = "";
@@ -297,7 +321,7 @@ Url.parseProjection = function(stringToParse) {
 				else {
 
 					// Extend current obj
-					_.extend(currentObj, Url.parseQuery(onQueryString));
+					_.extend(currentObj, UrlParser.parseQuery(onQueryString));
 
 					// Reset query datas
 					onQueryString = "";
@@ -334,11 +358,11 @@ Url.parseProjection = function(stringToParse) {
 
 					// Set current obj options
 					if(currentObj[currentObjKey] === 1) {
-						currentObj[currentObjKey] = { "$options" : { orderby : Url.parseOrderBy(onOrderByString) } };
+						currentObj[currentObjKey] = { "$options" : { orderby : UrlParser.parseOrderBy(onOrderByString) } };
 					} else if(typeof(currentObj[currentObjKey]["$options"]) === "object") {
-						currentObj[currentObjKey]["$options"].orderby = Url.parseOrderBy(onOrderByString);
+						currentObj[currentObjKey]["$options"].orderby = UrlParser.parseOrderBy(onOrderByString);
 					} else {
-						currentObj[currentObjKey]["$options"] = { orderby : Url.parseOrderBy(onOrderByString) };
+						currentObj[currentObjKey]["$options"] = { orderby : UrlParser.parseOrderBy(onOrderByString) };
 					}
 
 					// Reset orderby datas
@@ -1030,7 +1054,7 @@ Url.parseProjection = function(stringToParse) {
  * @return {Object}
  * @api public
  */
-Url.parseOrderBy = function(stringToParse) {
+UrlParser.parseOrderBy = function(stringToParse) {
 
 	// Check datas
 	if(typeof(stringToParse) !== "string")
@@ -1075,4 +1099,4 @@ Url.parseOrderBy = function(stringToParse) {
 
 
 // Exports
-module.exports = Url;
+module.exports = UrlParser;
