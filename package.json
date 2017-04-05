@@ -1,7 +1,7 @@
 {
   "name": "skul",
   "description": "SKuL - SQL query manager",
-  "version": "0.4.1",
+  "version": "0.4.2",
   "author": "Paul Duthoit <duthoit.paul@gmail.com>",
   "homepage": "http://skul.io/",
   "main": "index.js",
